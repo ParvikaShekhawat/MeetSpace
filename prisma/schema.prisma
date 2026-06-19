@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  INTERVIEWER
+  CANDIDATE
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum QuestionType {
+  CODING
+  SYSTEM_DESIGN
+  SQL
+  BEHAVIORAL
+}
+
+enum EventType {
+  INTERVIEW_STARTED
+  INTERVIEW_ENDED
+  QUESTION_STARTED
+  CODE_CHANGE
+  WHITEBOARD_CHANGE
+  SQL_QUERY
+  TRANSCRIPT
+  NOTE
+  FLAG
+  HINT
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  positions         Position[]
+  candidateProfiles Candidate[]
+}
+
+model Position {
+  id            String   @id @default(cuid())
+  title         String
+  durationMins  Int      @default(60)
+  interviewType String @default("Technical Round")
+  interviewerId String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  interviewer User        @relation(fields: [interviewerId], references: [id], onDelete: Cascade)
+  candidates  Candidate[]
+  interviews  Interview[]
+}
+
+model Candidate {
+  id         String   @id @default(cuid())
+  name       String
+  email      String
+  resumeUrl  String?
+  positionId String
+  userId     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  position   Position    @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  user       User?       @relation(fields: [userId], references: [id])
+  interviews Interview[]
+
+  @@unique([email, positionId])
+}
+
+model Question {
+  id          String       @id @default(cuid())
+  title       String
+  type        QuestionType @default(CODING)
+  difficulty  String       @default("Medium")
+  statement   String
+  constraints String?
+  hints       String?
+  metadata    String?
+  createdAt   DateTime     @default(now())
+
+  interviewQuestions InterviewQuestion[]
+}
+
+model Interview {
+  id          String            @id @default(cuid())
+  code        String            @unique
+  candidateId String
+  positionId  String
+  scheduledAt DateTime
+  durationMins Int              @default(60)
+  status      InterviewStatus   @default(SCHEDULED)
+  startedAt   DateTime?
+  endedAt     DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  candidate Candidate           @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  position  Position            @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  questions InterviewQuestion[]
+  events    InterviewEvent[]
+  report    InterviewReport?
+}
+
+model InterviewQuestion {
+  id          String @id @default(cuid())
+  interviewId String
+  questionId  String
+  order       Int    @default(0)
+  finalCode      String?
+  workspaceData  String?
+  notes          String?
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  question  Question  @relation(fields: [questionId], references: [id])
+
+  @@unique([interviewId, questionId])
+}
+
+model InterviewEvent {
+  id          String    @id @default(cuid())
+  interviewId String
+  timestampMs Int       @default(0)
+  type        EventType
+  payload     String    @default("{}")
+  createdAt   DateTime  @default(now())
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+}
+
+model InterviewReport {
+  id                    String   @id @default(cuid())
+  interviewId           String   @unique
+  overallScore          Int      @default(0)
+  aiSummary             String?
+  strengths             String?
+  weaknesses            String?
+  recommendation        String   @default("Hire")
+  interviewerNotes      String?
+  interviewerDecision   String?
+  finalComments         String?
+  questionsSolved       Int      @default(0)
+  hintsUsed             Int      @default(0)
+  competencyData        String?
+  learningPlanData      String?
+  sectionWiseFeedback   String?
+  candidateBetterApproach String?
+  aiGenerated           Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+}
+
+model RoomState {
+  id             String   @id @default(cuid())
+  interviewId    String
+  questionId     String
+  code           String?
+  workspaceData  String?
+  language       String   @default("javascript")
+  updatedBy      String
+  version        Int      @default(1)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([interviewId, questionId])
+}
